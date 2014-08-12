@@ -1,0 +1,40 @@
+--- ../distributions/RHEL6/cvsw_net.c	2014-08-09 18:27:47.745111988 +0900
++++ cvsw_test_main.c	2014-08-09 18:55:33.816729160 +0900
+@@ -17,7 +17,7 @@
+  * along with this program; if not, write to the Free Software
+  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+  */
+-//#define DEBUG
++#define DEBUG
+ #include <linux/netdevice.h>
+ #include <linux/etherdevice.h>
+ #include <linux/ethtool.h>
+@@ -26,10 +26,11 @@
+ #include <linux/virtio_net.h>
+ #include <linux/scatterlist.h>
+ #include <linux/if_vlan.h>
+-#include "../../cvsw_net.h"
+-#include "../../cvsw_ctl.h"
+-#include "../../cvsw_table.h"
+-#include "../../cvsw_data.h"
++#include "../cvsw_net.h"
++#include "../cvsw_ctl.h"
++#include "../cvsw_table.h"
++#include "../cvsw_data.h"
++#include "cvsw_test.h"
+ 
+ static int napi_weight = 128;
+ module_param(napi_weight, int, 0444);
+@@ -1132,6 +1133,12 @@
+ 	}
+ 
+ 	pr_debug("cvsw: registered device %s\n", dev->name);
++
++	if (! cvsw_test_start(dev)) {
++	    err = -ENOMEM;
++	    goto unregister;
++	}
++
+ 	return 0;
+ 
+ unregister:

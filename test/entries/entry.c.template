@@ -1,0 +1,62 @@
+#include <linux/netdevice.h>
+#include <linux/skbuff.h>
+#include "../cvsw_net2.h"
+#include "../cvsw_ctl.h"
+#include "../openflow.h"
+#include "cvsw_test.h"
+#include "entries/cvsw_test_flow_entry.h"
+
+static void init_cvsw_hdr(struct cvsw_hdr *hdr, int len)
+{
+    memset(hdr->dst_mac, 0xFF, ETH_ALEN);
+    hdr->cvsw.version = CVSW_VERSION;
+    hdr->cvsw.type    = CVSW_TYPE_SET_ENTRY;
+    hdr->cvsw.len     = htons((__u16)len);
+    hdr->cvsw.data    = 0;
+    hdr->ether_type   = htons(CVSW_ETH_TYPE);
+}
+
+/*
+ * Match  : 
+ * Action : 
+ */
+extern bool cvsw_test_add_entry1(struct net_device *dev)
+{
+    return true;
+}
+
+/*
+ * Match  : 
+ * Action : 
+ */
+extern bool cvsw_test_add_entry2(struct net_device *dev)
+{
+    return true;
+}
+
+/*
+ * Match  : 
+ * Action : 
+ */
+extern bool cvsw_test_add_entry3(struct net_device *dev)
+{
+    return true;
+}
+
+/*
+ * Match  : 
+ * Action : 
+ */
+extern bool cvsw_test_add_entry4(struct net_device *dev)
+{
+    return true;
+}
+
+/*
+ * Match  : 
+ * Action : 
+ */
+extern bool cvsw_test_add_entry5(struct net_device *dev)
+{
+    return true;
+}

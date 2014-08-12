@@ -1,0 +1,11 @@
+*.ko
+*.o
+*.cmd
+*.unsigned
+*.mod.*
+modules.*
+Module.*
+\.tmp_versions
+test/cvsw_test_main.c
+test/cvsw_test_main.c.orig
+test/entry.c
