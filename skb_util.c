@@ -25,8 +25,10 @@
 #include <linux/ipv6.h>
 #include <net/ipv6.h>
 #include <linux/in.h>
+#include <linux/udp.h>
 #include "skb_util.h"
-
+#include "ext/vxlan.h"
+#include "ext/stt.h"
 
 static bool skb_util_make_space(struct sk_buff *skb, const size_t size, const off_t offset)
 {
@@ -106,6 +108,28 @@ extern bool skb_util_make_vlan_space(struct sk_buff *skb)
 extern void skb_util_remove_vlan_space(struct sk_buff *skb)
 {
     skb_util_remove_space(skb, VLAN_HLEN, 12);
+
+    skb_reset_mac_header(skb);
+    skb_reset_network_header(skb);
+    skb_reset_transport_header(skb);
+}
+
+extern bool skb_util_make_tunnel_space(struct sk_buff *skb, size_t len)
+{
+    if (unlikely(! skb_util_make_space(skb, len, 0))) {
+	return false;
+    }
+
+    skb_reset_mac_header(skb);
+    skb_reset_network_header(skb);
+    skb_reset_transport_header(skb);
+
+    return true;
+}
+
+extern void skb_util_remove_tunnel_space(struct sk_buff *skb, size_t len)
+{
+    skb_util_remove_space(skb, len, 0);
 
     skb_reset_mac_header(skb);
     skb_reset_network_header(skb);
@@ -196,6 +220,49 @@ extern __u8 *skb_util_get_transport_header_nw(const __u8 *nw)
 	proto = skb_util_get_upper_proto_v6((struct ipv6hdr*)nw, &len);
 	if ((proto == NEXTHDR_TCP) || (proto == NEXTHDR_UDP)) {
 	    return (__u8*)&nw[len];
+	}
+    }
+    return NULL;
+}
+
+extern __u8 *skb_util_get_tunnel_header(const struct sk_buff *skb)
+{
+    __u8 *nw;
+    __u8 *tp;
+    __u8 protocol;
+
+    nw = skb_util_get_network_header(skb);
+    if (unlikely(! nw)) {
+	return NULL;
+    }
+
+    if (((struct iphdr*)nw)->version == 4) {
+	protocol = ((struct iphdr*)nw)->protocol;
+    } else if (((struct ipv6hdr*)nw)->version == 6) {
+	protocol = skb_util_get_upper_proto_v6((struct ipv6hdr*)nw, NULL);
+    } else {
+	return NULL;
+    }
+    tp = skb_util_get_transport_header_nw(nw);
+    if (unlikely(! tp)) {
+	return NULL;
+    }
+    return skb_util_get_tunnel_header_tp(tp, protocol);
+}
+
+extern __u8 *skb_util_get_tunnel_header_tp(const __u8 *tp, const __u8 protocol)
+{
+    if (protocol == IPPROTO_UDP) {
+	struct udphdr *udp;
+	udp = (struct udphdr*)tp;
+	if (udp->dest == htons(VXLAN_PORT)) {
+	    return (__u8*)(udp + 1);
+	}
+    } else if (protocol == IPPROTO_TCP) {
+	struct tcphdr *tcp;
+	tcp = (struct tcphdr*)tp;
+	if (tcp->dest == htons(STT_PORT)) {
+	    return (__u8*)(tcp + 1);
 	}
     }
     return NULL;

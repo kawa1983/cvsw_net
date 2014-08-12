@@ -43,11 +43,11 @@ distributions/${DIST_DIR}/cvsw_net.c: cvsw_net.h cvsw_ctl.h cvsw_table.h cvsw_da
 
 cvsw_ctl.c: cvsw_ctl.h cvsw_net.h cvsw_table.h
 
-cvsw_data.c: cvsw_data.h cvsw_net.h cvsw_table.h cvsw_flow_entry.h skb_util.h
+cvsw_data.c: cvsw_data.h cvsw_net.h cvsw_table.h cvsw_flow_entry.h skb_util.h ext/openflow_ext.h ext/vxlan.h ext/stt.h
 
-cvsw_table.c: cvsw_table.h cvsw_net.h cvsw_flow_entry.h
+cvsw_table.c: cvsw_table.h cvsw_net.h cvsw_flow_entry.h ext/openflow_ext.h ext/stt.h
 
-skb_util.c: skb_util.h
+skb_util.c: skb_util.h ext/vxlan.h ext/stt.h
 
 clean-files := *.o *.ko *.mod.[co] *~
 

@@ -22,6 +22,10 @@
 #define __CVSW_FLOW_ENTRY_H_INCLUDED__
 
 #include <linux/if_ether.h>
+#include <linux/ip.h>
+#include <linux/udp.h>
+#include "ext/vxlan.h"
+#include "ext/stt.h"
 
 #define CVSW_INST_TYPE_DROP         0x01
 #define CVSW_INST_TYPE_OUTPUT       0x02
@@ -35,6 +39,12 @@
 #define CVSW_INST_TYPE_SET_NW_TOS   0x33
 #define CVSW_INST_TYPE_SET_TP_DST   0x41
 #define CVSW_INST_TYPE_SET_TP_SRC   0x42
+#define CVSW_INST_TYPE_SET_VXLAN    0x81
+#define CVSW_INST_TYPE_STRIP_VXLAN  0x82
+#define CVSW_INST_TYPE_SET_NVGRE    0x83
+#define CVSW_INST_TYPE_STRIP_NVGRE  0x84
+#define CVSW_INST_TYPE_SET_STT      0x85
+#define CVSW_INST_TYPE_STRIP_STT    0x86
 
 struct cvsw_match
 {
@@ -51,7 +61,30 @@ struct cvsw_match
     __be16 tp_src;
     __be16 tp_dst;
     __u16 in_port;
+    __u32 tun_id;
 };
+
+struct inst_tunnel
+{
+    struct ethhdr   ether;
+    struct iphdr    ip;
+} __attribute__ ((packed));
+
+struct inst_vxlan
+{
+    struct ethhdr   ether;
+    struct iphdr    ip;
+    struct udphdr   udp;
+    struct vxlanhdr vxlan;
+} __attribute__ ((packed));
+
+struct inst_stt
+{
+    struct ethhdr   ether;
+    struct iphdr    ip;
+    struct ptcphdr  ptcp;
+    struct stthdr   stt;
+} __attribute__ ((packed));
 
 struct cvsw_instruction
 {
@@ -65,6 +98,8 @@ struct cvsw_instruction
 	__u8  nw_tos;
 	__be16 tp_port;
 	__u16 out_port;
+	struct inst_vxlan tun_vxlan;
+	struct inst_stt   tun_stt;
     };
 };
 

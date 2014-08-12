@@ -18,14 +18,23 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <linux/version.h>
 #include <linux/list.h>
 #include <linux/list_sort.h>
+#include <linux/hashtable.h>
+#include <linux/ip.h>
+#include <linux/ipv6.h>
 #include "openflow.h"
 #include "cvsw_net.h"
 #include "cvsw_table.h"
 #include "cvsw_flow_entry.h"
+#include "ext/openflow_ext.h"
+#include "ext/vxlan.h"
+#include "ext/stt.h"
 
-static LIST_HEAD(flow_table);  /* OpenFlow-based flow table */
+static LIST_HEAD(flow_table);           /* OpenFlow-based flow table */
+
+static DEFINE_HASHTABLE(frag_hash, 12); /* Tunnel fragment control block */
 
 
 static int entry_sort_cmp(void *priv, struct list_head *a, struct list_head *b)
@@ -102,11 +111,18 @@ static void cvsw_set_entry_match(struct cvsw_match *cvsw, const struct ofp_match
     if (~cvsw->wildcards & OFPFW_NW_DST_ALL) {
 	memcpy(cvsw->nw_dst, &ofp->nw_dst, 4);
     }
-    if (~cvsw->wildcards & OFPFW_TP_SRC) {
-        cvsw->tp_src = ofp->tp_src;
-    }
-    if (~cvsw->wildcards & OFPFW_TP_DST) {
-	cvsw->tp_dst = ofp->tp_dst;
+    if (~cvsw->wildcards & OFPFW_EXT_TUN_VXLAN_VNI) {
+	cvsw->tun_id = *((__u32*)&ofp->tp_src) >> VXLAN_VNI_SHIFT;
+	cvsw->tun_id &= htonl(VXLAN_VNI_MASK);
+    } else if (~cvsw->wildcards & OFPFW_EXT_TUN_STT_CID) {
+	cvsw->tun_id = *((__u32*)&ofp->tp_src);
+    } else {
+	if (~cvsw->wildcards & OFPFW_TP_SRC) {
+	    cvsw->tp_src = ofp->tp_src;
+	}
+	if (~cvsw->wildcards & OFPFW_TP_DST) {
+	    cvsw->tp_dst = ofp->tp_dst;
+	}
     }
 }
 
@@ -304,6 +320,150 @@ static bool cvsw_set_tp_port_instruction(struct cvsw_instruction *inst, const __
     return true;
 }
 
+static void cvsw_set_tun_ether(struct ethhdr *ether, const struct ofp_ext_action_tunnel *action)
+{
+    memcpy(ether->h_dest, action->dl_dest, ETH_ALEN);
+    memcpy(ether->h_source, action->dl_src, ETH_ALEN);
+    ether->h_proto = htons(ETH_P_IP);
+}
+
+static void cvsw_set_tun_ip(struct iphdr *ip, const struct ofp_ext_action_tunnel *action)
+{
+    ip->version  = 4;
+    ip->ihl      = 5;
+    ip->tos      = 0;
+    ip->tot_len  = 0;
+    ip->id       = 0;
+    ip->frag_off = htons(0x4000); /* Don't Fragment */
+    ip->ttl      = 128;
+    switch (ntohs(action->type)) {
+    case OFPAT_EXT_SET_VXLAN:
+	ip->protocol = IPPROTO_UDP;
+	break;
+    case OFPAT_EXT_SET_NVGRE:
+	ip->protocol = IPPROTO_GRE;
+	break;
+    case OFPAT_EXT_SET_STT:
+	ip->protocol = IPPROTO_TCP;
+	break;
+    default:
+	pr_warn("Unknown tunnel type : %d\n", action->type);
+    }
+    ip->check    = 0;
+    memcpy(&ip->daddr, action->nw_dest, 4);
+    memcpy(&ip->saddr, action->nw_src, 4);
+}
+
+static void cvsw_set_tun_udp(struct udphdr *udp, const struct ofp_ext_action_vxlan *action)
+{
+    udp->dest   = htons(VXLAN_PORT);
+    udp->source = 0;
+    udp->len    = htons(sizeof(struct udphdr) + sizeof(struct vxlanhdr));
+    udp->check  = 0;
+}
+
+static void cvsw_set_tun_ptcp(struct ptcphdr *ptcp, const struct ofp_ext_action_stt *action)
+{
+    memset(ptcp, '\0', sizeof(struct ptcphdr));
+
+    ptcp->dest  = htons(STT_PORT);
+    ptcp->ack   = 1;
+    ptcp->doff  = 5;
+}
+
+static void cvsw_set_tun_checksum(struct inst_tunnel *tunnel)
+{
+    __u16 len;
+    __be16 *check;
+    __wsum csum;
+
+    tunnel->ip.check = ip_fast_csum((__u8*)&tunnel->ip, tunnel->ip.ihl);
+
+    if (tunnel->ip.protocol == IPPROTO_UDP) {
+	len = sizeof(struct udphdr) + sizeof(struct vxlanhdr);
+	check = &((struct inst_vxlan*)tunnel)->udp.check;
+    } else if (tunnel->ip.protocol == IPPROTO_TCP) {
+	len = sizeof(struct ptcphdr) + sizeof(struct stthdr);
+	check = &((struct inst_stt*)tunnel)->ptcp.check;
+    } else {
+	return ;
+    }
+    csum = csum_partial((__u8*)(tunnel + 1), len, 0); /* Calculate sum from tp layer */
+    *check = csum_tcpudp_magic(tunnel->ip.saddr, tunnel->ip.daddr, 
+			       len, tunnel->ip.protocol, csum);
+}
+
+static bool cvsw_set_tun_vxlan_instruction(struct cvsw_instruction *inst, const __u8 *data, const int len)
+{
+    struct ofp_ext_action_vxlan *action;
+    struct inst_vxlan *vxlan;
+
+    if (unlikely(sizeof(struct ofp_ext_action_vxlan) != len)) {
+	return false;
+    }
+
+    action = (struct ofp_ext_action_vxlan*)data;
+    vxlan = &inst->tun_vxlan;
+
+    inst->type = CVSW_INST_TYPE_SET_VXLAN;
+    cvsw_set_tun_ether(&vxlan->ether, (struct ofp_ext_action_tunnel*)action);
+    cvsw_set_tun_ip(&vxlan->ip, (struct ofp_ext_action_tunnel*)action);
+    cvsw_set_tun_udp(&vxlan->udp, action);
+    vxlan->vxlan.flags = VXLAN_FLAGS_HAS_VNI;
+    vxlan->vxlan.vni   = (action->vxlan_vni & VXLAN_VNI_MASK) >> VXLAN_VNI_SHIFT;
+
+    cvsw_set_tun_checksum((struct inst_tunnel*)vxlan);
+
+    pr_info("ADD VXLAN instruction : VNI = %d\n", ntohl(vxlan->vxlan.vni << VXLAN_VNI_SHIFT) );
+
+    return true;
+}
+
+static bool cvsw_strip_tun_vxlan_instruction(struct cvsw_instruction *inst)
+{
+    inst->type = CVSW_INST_TYPE_STRIP_VXLAN;
+
+    pr_info("Add strip VXLAN instruction\n");
+
+    return true;
+}
+
+static bool cvsw_set_tun_stt_instruction(struct cvsw_instruction *inst, const __u8 *data, const int len)
+{
+    struct ofp_ext_action_stt *action;
+    struct inst_stt *stt;
+
+    if (unlikely(sizeof(struct ofp_ext_action_stt) != len)) {
+	return false;
+    }
+
+    action = (struct ofp_ext_action_stt*)data;
+    stt = &inst->tun_stt;
+
+    inst->type = CVSW_INST_TYPE_SET_STT;
+    cvsw_set_tun_ether(&stt->ether, (struct ofp_ext_action_tunnel*)action);
+    cvsw_set_tun_ip(&stt->ip, (struct ofp_ext_action_tunnel*)action);
+    cvsw_set_tun_ptcp(&stt->ptcp, action);
+
+    stt->stt.version    = STT_VERSION;
+    stt->stt.context_id = action->context_id;
+
+    cvsw_set_tun_checksum((struct inst_tunnel*)stt);
+
+    pr_info("ADD STT instruction : CID = %d\n", ntohl(stt->stt.context_id));
+
+    return true;
+}
+
+static bool cvsw_strip_tun_stt_instruction(struct cvsw_instruction *inst)
+{
+    inst->type = CVSW_INST_TYPE_STRIP_STT;
+
+    pr_info("Add strip STT instruction\n");
+
+    return true;
+}
+
 static bool cvsw_set_entry_instructions_impl(struct cvsw_instruction *insts, const int nr_insts, const __u8 *data)
 {
     int i;
@@ -344,6 +504,18 @@ static bool cvsw_set_entry_instructions_impl(struct cvsw_instruction *insts, con
 	case OFPAT_SET_TP_SRC:
 	case OFPAT_SET_TP_DST:
 	    ret = cvsw_set_tp_port_instruction(&insts[i], data, len);
+	    break;
+	case OFPAT_EXT_SET_VXLAN:
+	    ret = cvsw_set_tun_vxlan_instruction(&insts[i], data, len);
+	    break;
+	case OFPAT_EXT_STRIP_VXLAN:
+	    ret = cvsw_strip_tun_vxlan_instruction(&insts[i]);
+	    break;
+	case OFPAT_EXT_SET_STT:
+	    ret = cvsw_set_tun_stt_instruction(&insts[i], data, len);
+	    break;
+	case OFPAT_EXT_STRIP_STT:
+	    ret = cvsw_strip_tun_stt_instruction(&insts[i]);
 	    break;
 	default:
 	    pr_warn("Unsupported instruction type : %d\n", type);
@@ -531,6 +703,57 @@ extern bool cvsw_delete_table_entry(const __u8 *data, const int len)
     return true;
 }
 
+extern struct tun_fragment *cvsw_find_tunnel_frag_cb(const __u32 key, const __u32 id)
+{
+    struct tun_fragment *frag;
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(3,8,13)
+    struct hlist_node   *node;
+    hash_for_each_possible(frag_hash, frag, node, list, key) {
+#else
+    hash_for_each_possible(frag_hash, frag, list, key) {
+#endif
+	if (likely(frag->id == id)) {
+	    return frag;
+	}
+    }
+    return NULL;
+}
+
+extern void cvsw_add_tunnel_frag_cb(struct tun_fragment *frag, const __u32 key)
+{
+    struct hlist_node *old_node;
+
+    old_node = frag_hash[hash_min(key, HASH_BITS(frag_hash))].first;
+    if (unlikely(old_node)) {
+	cvsw_delete_tunnel_frag_cb(old_node);
+    }
+    hash_add(frag_hash, &frag->list, key);
+}
+
+extern void cvsw_delete_tunnel_frag_cb(struct hlist_node *node)
+{
+    if (likely(node)) {
+	struct tun_fragment *frag;
+	frag = container_of(node, struct tun_fragment, list);
+	if (likely(frag->skb)) {
+	    dev_kfree_skb_any(frag->skb);
+	    frag->skb = NULL;
+	}
+	hash_del(node);
+	kfree(frag);
+    }
+}
+
+static void cvsw_delete_all_tunnel_frag_cbs(void)
+{
+    int i;
+    for (i = 0; i < HASH_SIZE(frag_hash); i++) {
+	struct hlist_node *node;
+	node = frag_hash[i].first;
+	cvsw_delete_tunnel_frag_cb(node);
+    }
+}
+
 extern void cvsw_cleanup_table(void)
 {
     struct cvsw_flow_entry *entry;
@@ -539,4 +762,6 @@ extern void cvsw_cleanup_table(void)
 	entry = list_entry(flow_table.next, struct cvsw_flow_entry, list);
 	cvsw_delete_entry(entry);
     }
+
+    cvsw_delete_all_tunnel_frag_cbs();
 }

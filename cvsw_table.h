@@ -21,11 +21,26 @@
 #ifndef __CVSW_TABLE_H_INCLUDED__
 #define __CVSW_TABLE_H_INCLUDED__
 
+struct sk_buff;
+struct hlist_node;
+
+struct tun_fragment
+{
+    __be32            id;
+    off_t             next_idx;
+    size_t            frame_size;
+    struct sk_buff   *skb;
+    struct hlist_node list;
+};
+
 struct list_head;
 extern struct list_head *cvsw_get_flow_table(void);
 
 extern bool cvsw_add_table_entry(const __u8 *data, const int len);
 extern bool cvsw_delete_table_entry(const __u8 *data, const int len);
+extern void cvsw_add_tunnel_frag_cb(struct tun_fragment *frag, const __u32 key);
+extern void cvsw_delete_tunnel_frag_cb(struct hlist_node *node);
+extern struct tun_fragment *cvsw_find_tunnel_frag_cb(const __u32 key, const __u32 id);
 extern void cvsw_cleanup_table(void);
 
 #endif /* __CVSW_TABLE_H_INCLUDED__ */

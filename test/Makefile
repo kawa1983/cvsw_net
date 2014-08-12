@@ -49,11 +49,11 @@ cvsw_test.c: cvsw_test.h entries/cvsw_test_flow_entry.h ../cvsw_ctl.h ../cvsw_fl
 
 cvsw_ctl.c: ../cvsw_ctl.h ../cvsw_net.h ../cvsw_table.h
 
-cvsw_data.c: ../cvsw_data.h ../cvsw_net.h ../cvsw_table.h ../cvsw_flow_entry.h ../skb_util.h
+cvsw_data.c: ../cvsw_data.h ../cvsw_net.h ../cvsw_table.h ../cvsw_flow_entry.h ../skb_util.h ../ext/openflow_ext.h ../ext/vxlan.h ../ext/stt.h
 
-cvsw_table.c: ../cvsw_table.h ../cvsw_net.h ../cvsw_flow_entry.h
+cvsw_table.c: ../cvsw_table.h ../cvsw_net.h ../cvsw_flow_entry.h ../ext/openflow_ext.h ../ext/vxlan.h ../ext/stt.h
 
-skb_util.c: ../skb_util.h
+skb_util.c: ../skb_util.h ../ext/openflow_ext.h ../ext/vxlan.h ../ext/stt.h
 
 clean-files := *.o ../*.o *.ko *.mod.[co] *~ cvsw_test_main.c cvsw_test_main.c.orig entry.c
 

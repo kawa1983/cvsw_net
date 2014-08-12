@@ -1,5 +1,5 @@
 /*
- * skb_util.h : Utility functions for SKB
+ * vxlan.h : VXLAN related definition
  * 
  * Copyright 2014 Ryota Kawashima <kawa1983@ieee.org> Nagoya Institute of Technology
  *
@@ -18,20 +18,26 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef __SKB_UTIL_H_INCLUDED__
-#define __SKB_UTIL_H_INCLUDED__
+#ifndef __CVSW_EXT_VXLAN_H_INCLUDED__
+#define __CVSW_EXT_VXLAN_H_INCLUDED__
 
-struct sk_buff;
+#define VXLAN_PORT          4789
 
-extern bool skb_util_make_vlan_space(struct sk_buff *skb);
-extern void skb_util_remove_vlan_space(struct sk_buff *skb);
-extern bool skb_util_make_tunnel_space(struct sk_buff *skb, size_t len);
-extern void skb_util_remove_tunnel_space(struct sk_buff *skb, size_t len);
+#define VXLAN_HDR_LEN       8
 
-extern __u8 *skb_util_get_network_header(const struct sk_buff *skb);
-extern __u8 *skb_util_get_transport_header(const struct sk_buff *skb);
-extern __u8 *skb_util_get_transport_header_nw(const __u8 *nw);
-extern __u8 *skb_util_get_tunnel_header(const struct sk_buff *skb);
-extern __u8 *skb_util_get_tunnel_header_tp(const __u8 *tp, const __u8 protocol);
+#define VXLAN_HEADROOM_LEN  50
 
-#endif /* __SKB_UTIL_H_INCLUDED__ */
+#define VXLAN_FLAGS_HAS_VNI 0x08
+
+#define VXLAN_VNI_MASK      0xFFFFFF00
+
+#define VXLAN_VNI_SHIFT     8
+
+struct vxlanhdr
+{
+    __u8   flags;
+    __u8   reserved1[3];
+    __be32 vni;
+} __attribute__ ((packed));
+
+#endif /* __CVSW_EXT_VXLAN_H_INCLUDED__ */
