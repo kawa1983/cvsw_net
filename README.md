@@ -70,7 +70,7 @@ Currently CVSW has been tested with KVM on the following distributions.
 
 1. $ cd test
 
-2. $ ln -s entries/<entry file> entry.c
+2. $ ln -s entries/&lt;entry file&gt; entry.c
 
 3. $ make
 
@@ -97,4 +97,4 @@ Institute of Electronics Information and Communication Engineers B
 
 ## Contact 
 
-Ryota Kawashima <kawa1983-at-nitech.ac.jp\>
+Ryota Kawashima &lt;kawa1983<span>@</span>nitech.ac.jp&gt;
