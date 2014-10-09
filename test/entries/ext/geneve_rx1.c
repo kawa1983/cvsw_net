@@ -1,5 +1,5 @@
 /*
- * vxlan_rx1.c : CVSW vxlan test entries (receiver)
+ * geneve_rx1.c : CVSW geneve test entries (receiver)
  * 
  * Copyright 2014 Ryota Kawashima <kawa1983@ieee.org> Nagoya Institute of Technology
  *
@@ -24,7 +24,7 @@
 #include "../cvsw_ctl.h"
 #include "../openflow.h"
 #include "../ext/openflow_ext.h"
-#include "../ext/vxlan.h"
+#include "../ext/geneve.h"
 #include "cvsw_test.h"
 #include "entries/cvsw_test_flow_entry.h"
 
@@ -92,16 +92,16 @@ extern bool cvsw_test_add_entry2(struct net_device *dev)
 
 /*
  * Match  : IN_PORT (NET)
- * Action : STRIP_VXLAN
+ * Action : STRIP_GENEVE
  */
 extern bool cvsw_test_add_entry3(struct net_device *dev)
 {
     struct sk_buff *skb;
     struct cvsw_hdr hdr;
     struct ofp_flow_mod flow;
-    struct ofp_action_header vxlan;
+    struct ofp_action_header geneve;
 
-    init_cvsw_hdr(&hdr, sizeof(flow) + sizeof(vxlan));
+    init_cvsw_hdr(&hdr, sizeof(flow) + sizeof(geneve));
 
     memset(&flow, 0, sizeof(flow));
     flow.header.type = OFPT_FLOW_MOD;
@@ -110,18 +110,18 @@ extern bool cvsw_test_add_entry3(struct net_device *dev)
     flow.match.wildcards = htonl(OFPFW_ALL ^ OFPFW_IN_PORT);
     flow.match.in_port   = htons(CVSW_PORT_NET);
 
-    memset(&vxlan, 0, sizeof(vxlan));
-    vxlan.type = htons(OFPAT_EXT_STRIP_VXLAN);
-    vxlan.len  = htons(sizeof(vxlan));
+    memset(&geneve, 0, sizeof(geneve));
+    geneve.type = htons(OFPAT_EXT_STRIP_GENEVE);
+    geneve.len  = htons(sizeof(geneve));
 
-    skb = cvsw_alloc_skb(sizeof(hdr) + sizeof(flow) + sizeof(vxlan), dev);
+    skb = cvsw_alloc_skb(sizeof(hdr) + sizeof(flow) + sizeof(geneve), dev);
     if (! skb) {
 	return false;
     }
 
     memcpy(skb_put(skb, sizeof(hdr)), &hdr, sizeof(hdr));
     memcpy(skb_put(skb, sizeof(flow)), &flow, sizeof(flow));
-    memcpy(skb_put(skb, sizeof(vxlan)), &vxlan, sizeof(vxlan));
+    memcpy(skb_put(skb, sizeof(geneve)), &geneve, sizeof(geneve));
 
     cvsw_handle_ctl(skb);
 

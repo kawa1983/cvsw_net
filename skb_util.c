@@ -28,7 +28,10 @@
 #include <linux/udp.h>
 #include "skb_util.h"
 #include "ext/vxlan.h"
+#include "ext/nvgre.h"
 #include "ext/stt.h"
+#include "ext/geneve.h"
+
 
 static bool skb_util_make_space(struct sk_buff *skb, const size_t size, const off_t offset)
 {
@@ -211,14 +214,15 @@ extern __u8 *skb_util_get_transport_header_nw(const __u8 *nw)
 	ip4 = (struct iphdr*)nw;
 	if (((ip4->frag_off & htons(0x1FF)) == 0) &&
 	    ((ip4->protocol == IPPROTO_TCP) || 
-	     (ip4->protocol == IPPROTO_UDP))) {
+	     (ip4->protocol == IPPROTO_UDP) ||
+	     (ip4->protocol == IPPROTO_GRE))) {
 	    return (__u8*)&nw[ip4->ihl << 2];
 	}
     } else if (((struct ipv6hdr*)nw)->version == 6) {
 	__u8 proto;
 	size_t len;
 	proto = skb_util_get_upper_proto_v6((struct ipv6hdr*)nw, &len);
-	if ((proto == NEXTHDR_TCP) || (proto == NEXTHDR_UDP)) {
+	if ((proto == NEXTHDR_TCP) || (proto == NEXTHDR_UDP) || (proto == NEXTHDR_GRE)) {
 	    return (__u8*)&nw[len];
 	}
     }
@@ -243,6 +247,7 @@ extern __u8 *skb_util_get_tunnel_header(const struct sk_buff *skb)
     } else {
 	return NULL;
     }
+
     tp = skb_util_get_transport_header_nw(nw);
     if (unlikely(! tp)) {
 	return NULL;
@@ -255,7 +260,8 @@ extern __u8 *skb_util_get_tunnel_header_tp(const __u8 *tp, const __u8 protocol)
     if (protocol == IPPROTO_UDP) {
 	struct udphdr *udp;
 	udp = (struct udphdr*)tp;
-	if (udp->dest == htons(VXLAN_PORT)) {
+	if ((udp->dest == htons(VXLAN_PORT)) ||
+	    (udp->dest == htons(GENEVE_PORT))) {
 	    return (__u8*)(udp + 1);
 	}
     } else if (protocol == IPPROTO_TCP) {
@@ -264,6 +270,8 @@ extern __u8 *skb_util_get_tunnel_header_tp(const __u8 *tp, const __u8 protocol)
 	if (tcp->dest == htons(STT_PORT)) {
 	    return (__u8*)(tcp + 1);
 	}
+    } else if (protocol == IPPROTO_GRE) {
+	return (__u8*)tp;
     }
     return NULL;
 }

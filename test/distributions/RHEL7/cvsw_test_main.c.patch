@@ -1,18 +1,9 @@
---- ../distributions/RHEL7/cvsw_net.c	2014-08-09 18:14:42.408277338 +0900
-+++ cvsw_test_main.c	2014-08-09 18:11:48.032139215 +0900
-@@ -17,7 +17,7 @@
-  * along with this program; if not, write to the Free Software
-  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-  */
--//#define DEBUG
-+#define DEBUG
- #include <linux/netdevice.h>
- #include <linux/etherdevice.h>
- #include <linux/ethtool.h>
-@@ -28,10 +28,11 @@
- #include <linux/if_vlan.h>
- #include <linux/slab.h>
- #include <linux/cpu.h>
+--- ../distributions/RHEL7/cvsw_net.c	2014-10-01 18:15:14.213755844 +0900
++++ cvsw_test_main.c	2014-10-01 18:21:38.744755415 +0900
+@@ -33,10 +33,12 @@
+  * CVSW extension (BEGIN)
+  ***************************************************************************/
+ 
 -#include "../../cvsw_net.h"
 -#include "../../cvsw_ctl.h"
 -#include "../../cvsw_table.h"
@@ -22,10 +13,11 @@
 +#include "../cvsw_table.h"
 +#include "../cvsw_data.h"
 +#include "cvsw_test.h"
++
  
- static int napi_weight = NAPI_POLL_WEIGHT;
- module_param(napi_weight, int, 0444);
-@@ -1761,6 +1762,11 @@
+ #define VIRTIO_NET_HDR_GSO_UDP_TUNNEL 0x20
+ 
+@@ -1794,6 +1796,11 @@
  	pr_debug("cvsw: registered device %s with %d RX and TX vq's\n",
  		 dev->name, max_queue_pairs);
  

@@ -1,5 +1,5 @@
 /*
- * vxlan_rx1.c : CVSW vxlan test entries (receiver)
+ * vxlan_tx2.c : CVSW vxlan test entries (sender)
  * 
  * Copyright 2014 Ryota Kawashima <kawa1983@ieee.org> Nagoya Institute of Technology
  *
@@ -65,7 +65,7 @@ extern bool cvsw_test_add_entry1(struct net_device *dev)
 }
 
 /*
- * Set Offloading (CSUM, GSO, GRO)
+ * Set Offloading (CSUM, TSO, UFO, GSO, GRO)
  */
 extern bool cvsw_test_add_entry2(struct net_device *dev)
 {
@@ -74,7 +74,8 @@ extern bool cvsw_test_add_entry2(struct net_device *dev)
 
     init_cvsw_hdr(&hdr, 0);
     hdr.cvsw.type = CVSW_TYPE_CHANGE_OFFLOAD;
-    hdr.cvsw.data = htons(CVSW_OFFLOAD_CSUM|CVSW_OFFLOAD_GSO|CVSW_OFFLOAD_GRO);
+    hdr.cvsw.data = htons(CVSW_OFFLOAD_CSUM|CVSW_OFFLOAD_TSO|CVSW_OFFLOAD_UFO|
+			  CVSW_OFFLOAD_GSO|CVSW_OFFLOAD_GRO);
 
     skb = cvsw_alloc_skb(sizeof(hdr), dev);
     if (! skb) {
@@ -91,15 +92,15 @@ extern bool cvsw_test_add_entry2(struct net_device *dev)
 }
 
 /*
- * Match  : IN_PORT (NET)
- * Action : STRIP_VXLAN
+ * Match  : IN_PORT (HOST)
+ * Action : SET_VXLAN (VNI = 10)
  */
 extern bool cvsw_test_add_entry3(struct net_device *dev)
 {
     struct sk_buff *skb;
     struct cvsw_hdr hdr;
     struct ofp_flow_mod flow;
-    struct ofp_action_header vxlan;
+    struct ofp_ext_action_vxlan vxlan;
 
     init_cvsw_hdr(&hdr, sizeof(flow) + sizeof(vxlan));
 
@@ -108,11 +109,32 @@ extern bool cvsw_test_add_entry3(struct net_device *dev)
     flow.priority = htons(10000);
 
     flow.match.wildcards = htonl(OFPFW_ALL ^ OFPFW_IN_PORT);
-    flow.match.in_port   = htons(CVSW_PORT_NET);
+    flow.match.in_port = htons(CVSW_PORT_HOST);
 
     memset(&vxlan, 0, sizeof(vxlan));
-    vxlan.type = htons(OFPAT_EXT_STRIP_VXLAN);
+    vxlan.type = htons(OFPAT_EXT_SET_VXLAN);
     vxlan.len  = htons(sizeof(vxlan));
+    vxlan.dl_dest[0] = 0x22;
+    vxlan.dl_dest[1] = 0x22;
+    vxlan.dl_dest[2] = 0x22;
+    vxlan.dl_dest[3] = 0x22;
+    vxlan.dl_dest[4] = 0x22;
+    vxlan.dl_dest[5] = 0x22;
+    vxlan.dl_src[0]  = 0x11;
+    vxlan.dl_src[1]  = 0x11;
+    vxlan.dl_src[2]  = 0x11;
+    vxlan.dl_src[3]  = 0x11;
+    vxlan.dl_src[4]  = 0x11;
+    vxlan.dl_src[5]  = 0x11;
+    vxlan.nw_dest[0] = 172;
+    vxlan.nw_dest[1] = 16;
+    vxlan.nw_dest[2] = 0;
+    vxlan.nw_dest[3] = 2;
+    vxlan.nw_src[0]  = 172;
+    vxlan.nw_src[1]  = 16;
+    vxlan.nw_src[2]  = 0;
+    vxlan.nw_src[3]  = 1;
+    vxlan.vxlan_vni  = htonl(10);
 
     skb = cvsw_alloc_skb(sizeof(hdr) + sizeof(flow) + sizeof(vxlan), dev);
     if (! skb) {

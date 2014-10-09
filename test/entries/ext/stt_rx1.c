@@ -94,7 +94,7 @@ extern bool cvsw_test_add_entry2(struct net_device *dev)
 
 /*
  * Match  : IN_PORT (NET)
- * Action : STRIP_VXLAN
+ * Action : STRIP_STT
  */
 extern bool cvsw_test_add_entry3(struct net_device *dev)
 {

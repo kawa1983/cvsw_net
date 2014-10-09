@@ -86,4 +86,10 @@ struct stthdr
     __be16 pad;
 } __attribute__ ((packed));
 
+
+struct sk_buff;
+struct inst_stt;
+extern void cvsw_apply_set_stt(struct sk_buff *skb, const struct inst_stt *stt);
+extern bool cvsw_apply_strip_stt(struct sk_buff *skb);
+
 #endif /* __CVSW_EXT_STT_H_INCLUDED__ */

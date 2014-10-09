@@ -65,7 +65,7 @@ extern bool cvsw_test_add_entry1(struct net_device *dev)
 }
 
 /*
- * Set Offloading (CSUM, TSO, UFO, GSO, GRO)
+ * Set Offloading (CSUM, GSO, GRO)
  */
 extern bool cvsw_test_add_entry2(struct net_device *dev)
 {
@@ -74,9 +74,7 @@ extern bool cvsw_test_add_entry2(struct net_device *dev)
 
     init_cvsw_hdr(&hdr, 0);
     hdr.cvsw.type = CVSW_TYPE_CHANGE_OFFLOAD;
-    hdr.cvsw.data = htons(CVSW_OFFLOAD_CSUM|
-			  CVSW_OFFLOAD_TSO|CVSW_OFFLOAD_UFO|
-			  CVSW_OFFLOAD_GSO|CVSW_OFFLOAD_GRO);
+    hdr.cvsw.data = htons(CVSW_OFFLOAD_CSUM|CVSW_OFFLOAD_GSO|CVSW_OFFLOAD_GRO);
 
     skb = cvsw_alloc_skb(sizeof(hdr), dev);
     if (! skb) {

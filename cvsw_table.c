@@ -24,13 +24,16 @@
 #include <linux/hashtable.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
+#include <net/ip.h>
 #include "openflow.h"
 #include "cvsw_net.h"
 #include "cvsw_table.h"
 #include "cvsw_flow_entry.h"
 #include "ext/openflow_ext.h"
 #include "ext/vxlan.h"
+#include "ext/nvgre.h"
 #include "ext/stt.h"
+#include "ext/geneve.h"
 
 static LIST_HEAD(flow_table);           /* OpenFlow-based flow table */
 
@@ -114,8 +117,14 @@ static void cvsw_set_entry_match(struct cvsw_match *cvsw, const struct ofp_match
     if (~cvsw->wildcards & OFPFW_EXT_TUN_VXLAN_VNI) {
 	cvsw->tun_id = *((__u32*)&ofp->tp_src) >> VXLAN_VNI_SHIFT;
 	cvsw->tun_id &= htonl(VXLAN_VNI_MASK);
+    } else if (~cvsw->wildcards & OFPFW_EXT_TUN_NVGRE_VSID) {
+	cvsw->tun_id = *((__u32*)&ofp->tp_src) >> NVGRE_VSID_SHIFT;
+	cvsw->tun_id &= htonl(NVGRE_VSID_MASK);
     } else if (~cvsw->wildcards & OFPFW_EXT_TUN_STT_CID) {
 	cvsw->tun_id = *((__u32*)&ofp->tp_src);
+    } else if (~cvsw->wildcards & OFPFW_EXT_TUN_GENEVE_VNI) {
+	cvsw->tun_id = *((__u32*)&ofp->tp_src) >> GENEVE_VNI_SHIFT;
+	cvsw->tun_id &= htonl(GENEVE_VNI_MASK);
     } else {
 	if (~cvsw->wildcards & OFPFW_TP_SRC) {
 	    cvsw->tp_src = ofp->tp_src;
@@ -334,10 +343,12 @@ static void cvsw_set_tun_ip(struct iphdr *ip, const struct ofp_ext_action_tunnel
     ip->tos      = 0;
     ip->tot_len  = 0;
     ip->id       = 0;
-    ip->frag_off = htons(0x4000); /* Don't Fragment */
+    ip->frag_off = htons(IP_DF); /* Don't Fragment */
     ip->ttl      = 128;
+    ip->check    = 0;
     switch (ntohs(action->type)) {
     case OFPAT_EXT_SET_VXLAN:
+    case OFPAT_EXT_SET_GENEVE:
 	ip->protocol = IPPROTO_UDP;
 	break;
     case OFPAT_EXT_SET_NVGRE:
@@ -349,48 +360,28 @@ static void cvsw_set_tun_ip(struct iphdr *ip, const struct ofp_ext_action_tunnel
     default:
 	pr_warn("Unknown tunnel type : %d\n", action->type);
     }
-    ip->check    = 0;
+
     memcpy(&ip->daddr, action->nw_dest, 4);
     memcpy(&ip->saddr, action->nw_src, 4);
+
+    ip->check = ip_fast_csum((__u8*)ip, ip->ihl);
 }
 
-static void cvsw_set_tun_udp(struct udphdr *udp, const struct ofp_ext_action_vxlan *action)
+static void cvsw_set_tun_udp(struct udphdr *udp, __u16 dport, __u16 hdrlen)
 {
-    udp->dest   = htons(VXLAN_PORT);
+    udp->dest   = htons(dport);
     udp->source = 0;
-    udp->len    = htons(sizeof(struct udphdr) + sizeof(struct vxlanhdr));
+    udp->len    = htons(sizeof(struct udphdr) + hdrlen);
     udp->check  = 0;
 }
 
-static void cvsw_set_tun_ptcp(struct ptcphdr *ptcp, const struct ofp_ext_action_stt *action)
+static void cvsw_set_tun_ptcp(struct ptcphdr *ptcp)
 {
     memset(ptcp, '\0', sizeof(struct ptcphdr));
 
     ptcp->dest  = htons(STT_PORT);
     ptcp->ack   = 1;
     ptcp->doff  = 5;
-}
-
-static void cvsw_set_tun_checksum(struct inst_tunnel *tunnel)
-{
-    __u16 len;
-    __be16 *check;
-    __wsum csum;
-
-    tunnel->ip.check = ip_fast_csum((__u8*)&tunnel->ip, tunnel->ip.ihl);
-
-    if (tunnel->ip.protocol == IPPROTO_UDP) {
-	len = sizeof(struct udphdr) + sizeof(struct vxlanhdr);
-	check = &((struct inst_vxlan*)tunnel)->udp.check;
-    } else if (tunnel->ip.protocol == IPPROTO_TCP) {
-	len = sizeof(struct ptcphdr) + sizeof(struct stthdr);
-	check = &((struct inst_stt*)tunnel)->ptcp.check;
-    } else {
-	return ;
-    }
-    csum = csum_partial((__u8*)(tunnel + 1), len, 0); /* Calculate sum from tp layer */
-    *check = csum_tcpudp_magic(tunnel->ip.saddr, tunnel->ip.daddr, 
-			       len, tunnel->ip.protocol, csum);
 }
 
 static bool cvsw_set_tun_vxlan_instruction(struct cvsw_instruction *inst, const __u8 *data, const int len)
@@ -408,13 +399,11 @@ static bool cvsw_set_tun_vxlan_instruction(struct cvsw_instruction *inst, const 
     inst->type = CVSW_INST_TYPE_SET_VXLAN;
     cvsw_set_tun_ether(&vxlan->ether, (struct ofp_ext_action_tunnel*)action);
     cvsw_set_tun_ip(&vxlan->ip, (struct ofp_ext_action_tunnel*)action);
-    cvsw_set_tun_udp(&vxlan->udp, action);
+    cvsw_set_tun_udp(&vxlan->udp, VXLAN_PORT, (__u16)sizeof(struct vxlanhdr));
     vxlan->vxlan.flags = VXLAN_FLAGS_HAS_VNI;
     vxlan->vxlan.vni   = (action->vxlan_vni & VXLAN_VNI_MASK) >> VXLAN_VNI_SHIFT;
 
-    cvsw_set_tun_checksum((struct inst_tunnel*)vxlan);
-
-    pr_info("ADD VXLAN instruction : VNI = %d\n", ntohl(vxlan->vxlan.vni << VXLAN_VNI_SHIFT) );
+    pr_info("ADD VXLAN instruction : VNI = %d\n", ntohl(vxlan->vxlan.vni << VXLAN_VNI_SHIFT));
 
     return true;
 }
@@ -424,6 +413,46 @@ static bool cvsw_strip_tun_vxlan_instruction(struct cvsw_instruction *inst)
     inst->type = CVSW_INST_TYPE_STRIP_VXLAN;
 
     pr_info("Add strip VXLAN instruction\n");
+
+    return true;
+}
+
+static bool cvsw_set_tun_nvgre_instruction(struct cvsw_instruction *inst, const __u8 *data, const int len)
+{
+    struct ofp_ext_action_nvgre *action;
+    struct inst_nvgre *nvgre;
+    __u32 temp;
+
+    if (unlikely(sizeof(struct ofp_ext_action_nvgre) != len)) {
+	return false;
+    }
+
+    action = (struct ofp_ext_action_nvgre*)data;
+    nvgre = &inst->tun_nvgre;
+
+    inst->type = CVSW_INST_TYPE_SET_NVGRE;
+    cvsw_set_tun_ether(&nvgre->ether, (struct ofp_ext_action_tunnel*)action);
+    cvsw_set_tun_ip(&nvgre->ip, (struct ofp_ext_action_tunnel*)action);
+
+    nvgre->nvgre.S = 0;
+    nvgre->nvgre.K = 1;
+    nvgre->nvgre.C = 0;
+    nvgre->nvgre.type = htons(ETH_P_TEB);
+    nvgre->nvgre.vsid = (action->vsid & NVGRE_VSID_MASK) >> NVGRE_VSID_SHIFT;
+
+    temp = nvgre->ip.saddr ^ nvgre->ip.daddr ^ nvgre->nvgre.vsid;
+    nvgre->nvgre.flowid = (__u8)((temp >> 24) ^ (temp >> 16) ^ (temp >> 8) ^ temp);
+
+    pr_info("ADD NVGRE instruction : VSID = %d\n", ntohl(nvgre->nvgre.vsid << NVGRE_VSID_SHIFT) );
+
+    return true;
+}
+
+static bool cvsw_strip_tun_nvgre_instruction(struct cvsw_instruction *inst)
+{
+    inst->type = CVSW_INST_TYPE_STRIP_NVGRE;
+
+    pr_info("Add strip NVGRE instruction\n");
 
     return true;
 }
@@ -443,12 +472,10 @@ static bool cvsw_set_tun_stt_instruction(struct cvsw_instruction *inst, const __
     inst->type = CVSW_INST_TYPE_SET_STT;
     cvsw_set_tun_ether(&stt->ether, (struct ofp_ext_action_tunnel*)action);
     cvsw_set_tun_ip(&stt->ip, (struct ofp_ext_action_tunnel*)action);
-    cvsw_set_tun_ptcp(&stt->ptcp, action);
+    cvsw_set_tun_ptcp(&stt->ptcp);
 
     stt->stt.version    = STT_VERSION;
     stt->stt.context_id = action->context_id;
-
-    cvsw_set_tun_checksum((struct inst_tunnel*)stt);
 
     pr_info("ADD STT instruction : CID = %d\n", ntohl(stt->stt.context_id));
 
@@ -460,6 +487,44 @@ static bool cvsw_strip_tun_stt_instruction(struct cvsw_instruction *inst)
     inst->type = CVSW_INST_TYPE_STRIP_STT;
 
     pr_info("Add strip STT instruction\n");
+
+    return true;
+}
+
+static bool cvsw_set_tun_geneve_instruction(struct cvsw_instruction *inst, const __u8 *data, const int len)
+{
+    struct ofp_ext_action_geneve *action;
+    struct inst_geneve *geneve;
+
+    if (unlikely(sizeof(struct ofp_ext_action_geneve) != len)) {
+	return false;
+    }
+
+    action = (struct ofp_ext_action_geneve*)data;
+    geneve = &inst->tun_geneve;
+
+    inst->type = CVSW_INST_TYPE_SET_GENEVE;
+    cvsw_set_tun_ether(&geneve->ether, (struct ofp_ext_action_tunnel*)action);
+    cvsw_set_tun_ip(&geneve->ip, (struct ofp_ext_action_tunnel*)action);
+    cvsw_set_tun_udp(&geneve->udp, GENEVE_PORT, (__u16)sizeof(struct genevehdr));
+
+    geneve->geneve.version  = GENEVE_VERSION;
+    geneve->geneve.opt_len  = 0; /* TBD: Geneve options */
+    geneve->geneve.oam      = 0;
+    geneve->geneve.critical = 0;
+    geneve->geneve.type     = htons(ETH_P_TEB);
+    geneve->geneve.vni      = (action->geneve_vni & GENEVE_VNI_MASK) >> GENEVE_VNI_SHIFT;
+
+    pr_info("ADD Geneve instruction : VNI = %d\n", ntohl(geneve->geneve.vni << GENEVE_VNI_SHIFT) );
+
+    return true;
+}
+
+static bool cvsw_strip_tun_geneve_instruction(struct cvsw_instruction *inst)
+{
+    inst->type = CVSW_INST_TYPE_STRIP_GENEVE;
+
+    pr_info("Add strip Geneve instruction\n");
 
     return true;
 }
@@ -511,11 +576,23 @@ static bool cvsw_set_entry_instructions_impl(struct cvsw_instruction *insts, con
 	case OFPAT_EXT_STRIP_VXLAN:
 	    ret = cvsw_strip_tun_vxlan_instruction(&insts[i]);
 	    break;
+	case OFPAT_EXT_SET_NVGRE:
+	    ret = cvsw_set_tun_nvgre_instruction(&insts[i], data, len);
+	    break;
+	case OFPAT_EXT_STRIP_NVGRE:
+	    ret = cvsw_strip_tun_nvgre_instruction(&insts[i]);
+	    break;
 	case OFPAT_EXT_SET_STT:
 	    ret = cvsw_set_tun_stt_instruction(&insts[i], data, len);
 	    break;
 	case OFPAT_EXT_STRIP_STT:
 	    ret = cvsw_strip_tun_stt_instruction(&insts[i]);
+	    break;
+	case OFPAT_EXT_SET_GENEVE:
+	    ret = cvsw_set_tun_geneve_instruction(&insts[i], data, len);
+	    break;
+	case OFPAT_EXT_STRIP_GENEVE:
+	    ret = cvsw_strip_tun_geneve_instruction(&insts[i]);
 	    break;
 	default:
 	    pr_warn("Unsupported instruction type : %d\n", type);
@@ -668,6 +745,15 @@ static bool is_same_entry(const struct ofp_flow_mod *flow_mod, const struct cvsw
 	    return false;
 	}
     }
+    if (~flow_mod->match.wildcards & (OFPFW_EXT_TUN_VXLAN_VNI |
+				      OFPFW_EXT_TUN_NVGRE_VSID |
+				      OFPFW_EXT_TUN_STT_CID |
+				      OFPFW_EXT_TUN_GENEVE_VNI)) {
+	if (flow_mod->match.tp_src != entry->match.tp_src) {
+	    return false;
+	}
+    }
+
     return true;
 }
 

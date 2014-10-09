@@ -37,7 +37,14 @@ struct vxlanhdr
 {
     __u8   flags;
     __u8   reserved1[3];
-    __be32 vni;
+    __be32 vni:      24,
+           reserved: 8;
 } __attribute__ ((packed));
+
+
+struct sk_buff;
+struct inst_vxlan;
+extern void cvsw_apply_set_vxlan(struct sk_buff *skb, const struct inst_vxlan *vxlan);
+extern bool cvsw_apply_strip_vxlan(struct sk_buff *skb);
 
 #endif /* __CVSW_EXT_VXLAN_H_INCLUDED__ */

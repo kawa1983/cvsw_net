@@ -25,7 +25,9 @@
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include "ext/vxlan.h"
+#include "ext/nvgre.h"
 #include "ext/stt.h"
+#include "ext/geneve.h"
 
 #define CVSW_INST_TYPE_DROP         0x01
 #define CVSW_INST_TYPE_OUTPUT       0x02
@@ -45,6 +47,8 @@
 #define CVSW_INST_TYPE_STRIP_NVGRE  0x84
 #define CVSW_INST_TYPE_SET_STT      0x85
 #define CVSW_INST_TYPE_STRIP_STT    0x86
+#define CVSW_INST_TYPE_SET_GENEVE   0x87
+#define CVSW_INST_TYPE_STRIP_GENEVE 0x88
 
 struct cvsw_match
 {
@@ -78,12 +82,27 @@ struct inst_vxlan
     struct vxlanhdr vxlan;
 } __attribute__ ((packed));
 
+struct inst_nvgre
+{
+    struct ethhdr   ether;
+    struct iphdr    ip;
+    struct nvgrehdr nvgre;
+} __attribute__ ((packed));
+
 struct inst_stt
 {
     struct ethhdr   ether;
     struct iphdr    ip;
     struct ptcphdr  ptcp;
     struct stthdr   stt;
+} __attribute__ ((packed));
+
+struct inst_geneve
+{
+    struct ethhdr    ether;
+    struct iphdr     ip;
+    struct udphdr    udp;
+    struct genevehdr geneve;
 } __attribute__ ((packed));
 
 struct cvsw_instruction
@@ -98,8 +117,10 @@ struct cvsw_instruction
 	__u8  nw_tos;
 	__be16 tp_port;
 	__u16 out_port;
-	struct inst_vxlan tun_vxlan;
-	struct inst_stt   tun_stt;
+	struct inst_vxlan  tun_vxlan;
+	struct inst_nvgre  tun_nvgre;
+	struct inst_stt    tun_stt;
+	struct inst_geneve tun_geneve;
     };
 };
 
