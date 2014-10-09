@@ -515,8 +515,7 @@ static void receive_buf(struct receive_queue *rq, void *buf, unsigned int len)
  ***************************************************************************/
 	if (likely(cvsw)) {
 	    if (unlikely(! cvsw_handle_rx_skb(skb))) {
-		dev_kfree_skb(skb);
-		return ;
+		goto frame_err;
 	    }
 	}
 /***************************************************************************

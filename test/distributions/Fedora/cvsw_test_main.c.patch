@@ -1,14 +1,5 @@
---- ../distributions/Fedora/cvsw_net.c	2014-08-09 14:15:53.134149714 +0900
-+++ cvsw_test_main.c	2014-08-09 18:03:30.597564919 +0900
-@@ -16,7 +16,7 @@
-  * You should have received a copy of the GNU General Public License
-  * along with this program; if not, see <http://www.gnu.org/licenses/>.
-  */
--//#define DEBUG
-+#define DEBUG
- #include <linux/netdevice.h>
- #include <linux/etherdevice.h>
- #include <linux/ethtool.h>
+--- ../distributions/Fedora/cvsw_net.c	2014-10-01 17:05:53.796760224 +0900
++++ cvsw_test_main.c	2014-10-01 17:08:47.334760054 +0900
 @@ -28,10 +28,11 @@
  #include <linux/slab.h>
  #include <linux/cpu.h>
@@ -25,7 +16,7 @@
  
  static int napi_weight = NAPI_POLL_WEIGHT;
  module_param(napi_weight, int, 0444);
-@@ -1857,6 +1858,12 @@
+@@ -1863,6 +1864,12 @@
  
  	pr_debug("cvsw: registered device %s with %d RX and TX vq's\n",
  		 dev->name, max_queue_pairs);
