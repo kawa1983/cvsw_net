@@ -39,7 +39,7 @@ clean:
 
 obj-m:= cvsw-test.o
 
-cvsw_test_main.c: cvsw_test.h
+cvsw_test_main.c: cvsw_test.h ../distributions/*/cvsw_net.c
 	cp -f ../distributions/${DIST_DIR}/cvsw_net.c cvsw_test_main.c
 	patch -u cvsw_test_main.c < distributions/${DIST_DIR}/cvsw_test_main.c.patch
 

@@ -1,7 +1,7 @@
-Co-Virtual Switch (CVSW) for SDN-enabled virtual networks
+## Co-Virtual Switch (CVSW) for SDN-enabled virtual networks
 
 
-## Overview
+### Overview
 
 CVSW is a vNIC driver designed for offloading packet processing of 
 high functional virtual switches. CVSW enables per-VM packet processing, 
@@ -12,16 +12,18 @@ command-line shells. Here, supported functions are listed as follows:
 * Para-virtualized network driver (virtio-net)
 * OpenFlow 1.0 Match-Action
 * MTU size setting
-* GSO and H/W checksum setting
-* VXLAN and STT tunneling (cvsw-nvo3 branch)
+* Offload  setting
+* VXLAN, NVGRE, STT, and Geneve tunneling (cvsw-nvo3 branch)
 
 
-## Branches
+=
+### Branches
 
-* cvsw-nvo3       : Supports VXLAN and STT tunnels
+* cvsw-nvo3       : Supports VXLAN, NVGRE, STT, and Geneve tunnels
 
 
-## Files & Directories
+=
+### Files & Directories
 
 * cvsw_net.h      : CVSW message definition
 
@@ -43,58 +45,48 @@ command-line shells. Here, supported functions are listed as follows:
 
 * test/entries/   : Flow entry samples
 
+* ext/            : Tunnel processing (cvsw-nvo3 branch)
 
-## Supported distributions
+
+=
+### Supported distributions
 
 Currently CVSW has been tested with KVM on the following distributions.
 
-* Redhat Enterprise Linux 6.5
+ * Redhat Enterprise Linux 6.5
 
-* Redhat Enterprise Linux 7.0
+ * Redhat Enterprise Linux 7.0
 
-* Fedora 20
+ * Fedora 20
 
-* Ubuntu 14.04
-
-
-## Install
-
-1. $ make
-
-2. \# rmmod virtio_net
-
-3. \# insmod cvsw-net.ko
+ * Ubuntu 14.04
 
 
-### Install test modules
+=
+### Install
 
-1. $ cd test
-
-2. $ ln -s entries/<entry file> entry.c
-
-3. $ make
-
-4. \# rmmod virtio_net
-
-5. \# insmod cvsw-test.ko
+See 'INSTALL.md'
 
 
-## Setup
-
-TODO
-
-
-## Papers
+=
+### Papers
 
 Overview and architectural details of CVSW are described in the following 
-paper.
+papers.
+
+* R. Kawashima and H. Matsuo, "Implementing and Performance Analysis of 
+STT Tunneling using vNIC Offloading Framework (CVSW)", 
+Proceedings of IEEE 6th International Conference on Cloud Computing 
+Technology and Science (CloudCom 2014), Nanyang, Singapore, Dec. 2014 (To appear)
 
 * R. Kawashima and H. Matsuo, "Virtual NIC Offloading Approach for 
 Improving Performance of Virtual Networks", The Transactions of 
 Institute of Electronics Information and Communication Engineers B 
-(IEICE), vol. J97-B, no. 8, pp.639-647, 2014 (Japanese).
+(IEICE), vol.J97-B, no.8, pp.639-647, 2014 (Japanese).
 
 
-## Contact 
+=
+### Contact 
 
-Ryota Kawashima <kawa1983-at-nitech.ac.jp\>
+Ryota Kawashima &lt;kawa1983<span>@</span>nitech.ac.jp&gt;
+
