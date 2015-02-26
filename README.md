@@ -74,10 +74,15 @@ See 'INSTALL.md'
 Overview and architectural details of CVSW are described in the following 
 papers.
 
+* R. Kawashima, S. Muramatsu, H. Nakayama, T. Hayashi, and H. Matsuo, 
+"SCLP: Segment-oriented Connection-Less Protocol for High-Performance 
+Software Tunneling in Datacenter Networks", Proc. 1st IEEE Conference on 
+Network Softwarization (NetSoft 2015), London, UK, 2015 (to appear).
+
 * R. Kawashima and H. Matsuo, "Implementing and Performance Analysis of 
 STT Tunneling using vNIC Offloading Framework (CVSW)", 
 Proceedings of IEEE 6th International Conference on Cloud Computing 
-Technology and Science (CloudCom 2014), Nanyang, Singapore, Dec. 2014 (To appear)
+Technology and Science (CloudCom 2014), pp.929-934, Singapore, Dec. 2014
 
 * R. Kawashima and H. Matsuo, "Virtual NIC Offloading Approach for 
 Improving Performance of Virtual Networks", The Transactions of 
