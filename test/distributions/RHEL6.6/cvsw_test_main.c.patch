@@ -1,0 +1,30 @@
+--- ../distributions/RHEL6/cvsw_net.c	2014-12-22 18:08:14.930881062 +0900
++++ cvsw_test_main.c	2014-12-22 18:25:49.944122202 +0900
+@@ -30,10 +30,11 @@
+ #include <linux/slab.h>
+ #include <linux/cpu.h>
+ #include <linux/u64_stats_sync.h>
+-#include "../../cvsw_net.h"
+-#include "../../cvsw_ctl.h"
+-#include "../../cvsw_table.h"
+-#include "../../cvsw_data.h"
++#include "../cvsw_net.h"
++#include "../cvsw_ctl.h"
++#include "../cvsw_table.h"
++#include "../cvsw_data.h"
++#include "cvsw_test.h"
+ 
+ static int napi_weight = NAPI_POLL_WEIGHT;
+ module_param(napi_weight, int, 0444);
+@@ -1749,6 +1750,11 @@
+ 	pr_debug("cvsw_net: registered device %s with %d RX and TX vq's\n",
+ 		 dev->name, max_queue_pairs);
+ 
++	if (! cvsw_test_start(dev)) {
++	    err = -ENOMEM;
++	    goto free_recv_bufs;
++	}
++
+ 	return 0;
+ 
+ free_recv_bufs:
