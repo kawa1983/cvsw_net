@@ -26,23 +26,10 @@
 #include <linux/virtio_net.h>
 #include <linux/scatterlist.h>
 #include <linux/if_vlan.h>
-
-/***************************************************************************
- * CVSW extension (BEGIN)
- ***************************************************************************/
-
 #include "../../cvsw_net.h"
 #include "../../cvsw_ctl.h"
 #include "../../cvsw_table.h"
 #include "../../cvsw_data.h"
-
-#define VIRTIO_NET_HDR_GSO_UDP_TUNNEL 0x20
-
-#define VIRTIO_NET_HDR_GSO_GRE_TUNNEL 0x40
-
-/***************************************************************************
- * CVSW extension (END)
- ***************************************************************************/
 
 static int napi_weight = 128;
 module_param(napi_weight, int, 0444);
@@ -57,9 +44,6 @@ module_param(gso, bool, 0444);
 
 static bool cvsw = true;
 module_param(cvsw, bool, 0444);
-
-static bool tun = false;
-module_param(tun, bool, 0444);
 
 enum cvsw_st cvsw_state = CVSW_STATE_DISCONNECTED;
 
@@ -652,24 +636,6 @@ static int xmit_skb(struct virtnet_info *vi, struct sk_buff *skb)
 			BUG();
 		if (skb_shinfo(skb)->gso_type & SKB_GSO_TCP_ECN)
 			hdr->hdr.gso_type |= VIRTIO_NET_HDR_GSO_ECN;
-/***************************************************************************
- * CVSW extension (BEGIN)
- ***************************************************************************/
-		if (skb_shinfo(skb)->gso_type & SKB_GSO_UDP_TUNNEL) {
-		    if (tun) {
-			hdr->hdr.gso_type |= VIRTIO_NET_HDR_GSO_UDP_TUNNEL;
-		    }
-		} else if (skb_shinfo(skb)->gso_type & SKB_GSO_GRE) {
-		    if (tun) {
-			hdr->hdr.gso_type |= VIRTIO_NET_HDR_GSO_GRE_TUNNEL;
-		    } else {
-			hdr->hdr.gso_type = VIRTIO_NET_HDR_GSO_NONE;
-			hdr->hdr.gso_size = 0;
-		    }
-		}
-/***************************************************************************
- * CVSW extension (END)
- ***************************************************************************/
 	} else {
 		hdr->hdr.gso_type = VIRTIO_NET_HDR_GSO_NONE;
 		hdr->hdr.gso_size = hdr->hdr.hdr_len = 0;
