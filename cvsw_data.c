@@ -38,6 +38,7 @@
 #include "ext/nvgre.h"
 #include "ext/stt.h"
 #include "ext/geneve.h"
+#include "ext/vxlan_sclp.h"
 
 
 static inline void update_tp_pseudo_csum_4(struct sk_buff *skb, struct iphdr *ip, const __u32 old_addr, const __u32 new_addr)
@@ -255,6 +256,17 @@ static bool cvsw_do_match(const struct sk_buff *skb, const __u16 in_port, const 
 		return false;
 	    }
 	    wildcards |= OFPFW_EXT_TUN_NVGRE_VSID;   
+	}
+    } else if (nw->protocol == IPPROTO_SCLP) {
+    	if (tp->dest == htons(VXLAN_PORT)) {
+	    struct vxlanhdr *vxlan;
+	    vxlan = (struct vxlanhdr*)hdr;
+	    if (~wildcards & OFPFW_EXT_TUN_VXLAN_SCLP_VNI) {
+		if (match->tun_id != vxlan->vni) {
+		    return false;
+		}
+		wildcards |= OFPFW_EXT_TUN_VXLAN_SCLP_VNI;
+	    }
 	}
     }
 
@@ -561,6 +573,11 @@ static bool cvsw_apply_instruction(struct sk_buff *skb, const struct cvsw_instru
 	break;
     case CVSW_INST_TYPE_STRIP_GENEVE:
 	return cvsw_apply_strip_geneve(skb);
+    case CVSW_INST_TYPE_SET_VXLAN_SCLP:
+	cvsw_apply_set_vxlan_sclp(skb, &inst->tun_vxlan_sclp);
+	break;
+    case CVSW_INST_TYPE_STRIP_VXLAN_SCLP:
+	return cvsw_apply_strip_vxlan_sclp(skb);
     default:
 	pr_warn("Unknown instruction : %d\n", inst->type);
 	break;

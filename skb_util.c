@@ -26,11 +26,13 @@
 #include <net/ipv6.h>
 #include <linux/in.h>
 #include <linux/udp.h>
+#include <linux/sclp.h>
 #include "skb_util.h"
 #include "ext/vxlan.h"
 #include "ext/nvgre.h"
 #include "ext/stt.h"
 #include "ext/geneve.h"
+#include "ext/vxlan_sclp.h"
 
 
 static bool skb_util_make_space(struct sk_buff *skb, const size_t size, const off_t offset)
@@ -215,14 +217,15 @@ extern __u8 *skb_util_get_transport_header_nw(const __u8 *nw)
 	if (((ip4->frag_off & htons(0x1FF)) == 0) &&
 	    ((ip4->protocol == IPPROTO_TCP) || 
 	     (ip4->protocol == IPPROTO_UDP) ||
-	     (ip4->protocol == IPPROTO_GRE))) {
+	     (ip4->protocol == IPPROTO_GRE) ||
+	     (ip4->protocol == IPPROTO_SCLP))) {
 	    return (__u8*)&nw[ip4->ihl << 2];
 	}
     } else if (((struct ipv6hdr*)nw)->version == 6) {
 	__u8 proto;
 	size_t len;
 	proto = skb_util_get_upper_proto_v6((struct ipv6hdr*)nw, &len);
-	if ((proto == NEXTHDR_TCP) || (proto == NEXTHDR_UDP) || (proto == NEXTHDR_GRE)) {
+	if ((proto == NEXTHDR_TCP) || (proto == NEXTHDR_UDP) || (proto == NEXTHDR_GRE) || (proto == NEXTHDR_SCLP)) {
 	    return (__u8*)&nw[len];
 	}
     }
@@ -272,6 +275,12 @@ extern __u8 *skb_util_get_tunnel_header_tp(const __u8 *tp, const __u8 protocol)
 	}
     } else if (protocol == IPPROTO_GRE) {
 	return (__u8*)tp;
+    } else if (protocol == IPPROTO_SCLP) {
+	struct sclphdr *sclp;
+	sclp = (struct sclphdr*)tp;
+	if (sclp->dest == htons(VXLAN_PORT)) {
+	    return (__u8*)(sclp + 1);
+	}
     }
     return NULL;
 }

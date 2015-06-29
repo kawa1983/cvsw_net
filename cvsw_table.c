@@ -34,6 +34,7 @@
 #include "ext/nvgre.h"
 #include "ext/stt.h"
 #include "ext/geneve.h"
+#include "ext/vxlan_sclp.h"
 
 static LIST_HEAD(flow_table);           /* OpenFlow-based flow table */
 
@@ -125,6 +126,9 @@ static void cvsw_set_entry_match(struct cvsw_match *cvsw, const struct ofp_match
     } else if (~cvsw->wildcards & OFPFW_EXT_TUN_GENEVE_VNI) {
 	cvsw->tun_id = *((__u32*)&ofp->tp_src) >> GENEVE_VNI_SHIFT;
 	cvsw->tun_id &= htonl(GENEVE_VNI_MASK);
+    } else if (~cvsw->wildcards & OFPFW_EXT_TUN_VXLAN_SCLP_VNI) {
+	cvsw->tun_id = *((__u32*)&ofp->tp_src) >> VXLAN_VNI_SHIFT;
+	cvsw->tun_id &= htonl(VXLAN_VNI_MASK);
     } else {
 	if (~cvsw->wildcards & OFPFW_TP_SRC) {
 	    cvsw->tp_src = ofp->tp_src;
@@ -357,6 +361,9 @@ static void cvsw_set_tun_ip(struct iphdr *ip, const struct ofp_ext_action_tunnel
     case OFPAT_EXT_SET_STT:
 	ip->protocol = IPPROTO_TCP;
 	break;
+    case OFPAT_EXT_SET_VXLAN_SCLP:
+	ip->protocol = IPPROTO_SCLP;
+	break;
     default:
 	pr_warn("Unknown tunnel type : %d\n", action->type);
     }
@@ -382,6 +389,15 @@ static void cvsw_set_tun_ptcp(struct ptcphdr *ptcp)
     ptcp->dest  = htons(STT_PORT);
     ptcp->ack   = 1;
     ptcp->doff  = 5;
+}
+
+static void cvsw_set_tun_sclp(struct sclphdr *sclp, __u16 dport)
+{
+    sclp->dest   = htons(dport);
+    sclp->source = 0;
+    sclp->id     = 0;
+    sclp->rem    = 0;
+    sclp->check  = 0;
 }
 
 static bool cvsw_set_tun_vxlan_instruction(struct cvsw_instruction *inst, const __u8 *data, const int len)
@@ -529,6 +545,39 @@ static bool cvsw_strip_tun_geneve_instruction(struct cvsw_instruction *inst)
     return true;
 }
 
+static bool cvsw_set_tun_vxlan_sclp_instruction(struct cvsw_instruction *inst, const __u8 *data, const int len)
+{
+    struct ofp_ext_action_vxlan_sclp *action;
+    struct inst_vxlan_sclp *vxlan_sclp;
+
+    if (unlikely(sizeof(struct ofp_ext_action_vxlan_sclp) != len)) {
+	return false;
+    }
+
+    action = (struct ofp_ext_action_vxlan_sclp*)data;
+    vxlan_sclp = &inst->tun_vxlan_sclp;
+
+    inst->type = CVSW_INST_TYPE_SET_VXLAN_SCLP;
+    cvsw_set_tun_ether(&vxlan_sclp->ether, (struct ofp_ext_action_tunnel*)action);
+    cvsw_set_tun_ip(&vxlan_sclp->ip, (struct ofp_ext_action_tunnel*)action);
+    cvsw_set_tun_sclp(&vxlan_sclp->sclp, VXLAN_PORT);
+    vxlan_sclp->vxlan.flags = VXLAN_FLAGS_HAS_VNI;
+    vxlan_sclp->vxlan.vni   = (action->vxlan_sclp_vni & VXLAN_VNI_MASK) >> VXLAN_VNI_SHIFT;
+
+    pr_info("ADD VXLAN_SCLP instruction : VNI = %d\n", ntohl(vxlan_sclp->vxlan.vni << VXLAN_VNI_SHIFT));
+
+    return true;
+}
+
+static bool cvsw_strip_tun_vxlan_sclp_instruction(struct cvsw_instruction *inst)
+{
+    inst->type = CVSW_INST_TYPE_STRIP_VXLAN_SCLP;
+
+    pr_info("Add strip VXLAN_SCLP instruction\n");
+
+    return true;
+}
+
 static bool cvsw_set_entry_instructions_impl(struct cvsw_instruction *insts, const int nr_insts, const __u8 *data)
 {
     int i;
@@ -593,6 +642,12 @@ static bool cvsw_set_entry_instructions_impl(struct cvsw_instruction *insts, con
 	    break;
 	case OFPAT_EXT_STRIP_GENEVE:
 	    ret = cvsw_strip_tun_geneve_instruction(&insts[i]);
+	    break;
+	case OFPAT_EXT_SET_VXLAN_SCLP:
+	    ret = cvsw_set_tun_vxlan_sclp_instruction(&insts[i], data, len);
+	    break;
+	case OFPAT_EXT_STRIP_VXLAN_SCLP:
+	    ret = cvsw_strip_tun_vxlan_sclp_instruction(&insts[i]);
 	    break;
 	default:
 	    pr_warn("Unsupported instruction type : %d\n", type);
@@ -748,7 +803,8 @@ static bool is_same_entry(const struct ofp_flow_mod *flow_mod, const struct cvsw
     if (~flow_mod->match.wildcards & (OFPFW_EXT_TUN_VXLAN_VNI |
 				      OFPFW_EXT_TUN_NVGRE_VSID |
 				      OFPFW_EXT_TUN_STT_CID |
-				      OFPFW_EXT_TUN_GENEVE_VNI)) {
+				      OFPFW_EXT_TUN_GENEVE_VNI |
+				      OFPFW_EXT_TUN_VXLAN_SCLP_VNI)) {
 	if (flow_mod->match.tp_src != entry->match.tp_src) {
 	    return false;
 	}

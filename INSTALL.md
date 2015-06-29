@@ -39,7 +39,7 @@ The CVSW module supports some optional parameters as follows.
  * 1: All CVSW features are enabled (default)
  * 0: disabled
 
-* tun: (cvsw-nvo3 and cvsw-sero branches only)
+* tun: (cvsw-nvo3 branch only)
  * 1: Modified tun/tap device is used for VXLAN, NVGRE, and Geneve tunneling
  * 0: Original device is used (default)
 

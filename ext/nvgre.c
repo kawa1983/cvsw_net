@@ -47,7 +47,7 @@ extern void cvsw_apply_set_nvgre(struct sk_buff *skb, const struct inst_nvgre *n
 
     if (skb_is_gso(skb)) {
 	if (skb_shinfo(skb)->gso_type & SKB_GSO_TCPV4) {
-	    skb_shinfo(skb)->gso_size = 1360;
+	    skb_shinfo(skb)->gso_size = 1410;
 	}
 	skb_shinfo(skb)->gso_type |= SKB_GSO_GRE;
     } else if (skb->ip_summed == CHECKSUM_PARTIAL) {

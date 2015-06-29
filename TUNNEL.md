@@ -17,6 +17,7 @@ Currently, CVSW supports following tunneling protocols in cvsw-nvo3 branch:
 * NVGRE
 * STT
 * Geneve
+* VXLAN (SCLP-based)
 
 
 
@@ -30,6 +31,7 @@ NVO3 related source files are listed as follows:
 * ext/nvgre.h(c)     : NVGRE tunnel support
 * ext/stt.h(c)       : STT tunnel support
 * ext/geneve.h(c)    : Geneve tunnel support
+* ext/vxlan_sclp.h(c): VXLAN over SCLP tunnel support
 * test/entries/ext   : Sample flow entries for each tunnel protocol
 
 

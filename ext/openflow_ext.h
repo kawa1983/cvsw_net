@@ -24,21 +24,24 @@
 #include "../openflow.h"
 
 enum ofp_ext_flow_wildcards {
-    OFPFW_EXT_TUN_VXLAN_VNI  = 1 << 16,
-    OFPFW_EXT_TUN_NVGRE_VSID = 1 << 17,
-    OFPFW_EXT_TUN_STT_CID    = 1 << 18,
-    OFPFW_EXT_TUN_GENEVE_VNI = 1 << 19,
+    OFPFW_EXT_TUN_VXLAN_VNI      = 1 << 16,
+    OFPFW_EXT_TUN_NVGRE_VSID     = 1 << 17,
+    OFPFW_EXT_TUN_STT_CID        = 1 << 18,
+    OFPFW_EXT_TUN_GENEVE_VNI     = 1 << 19,
+    OFPFW_EXT_TUN_VXLAN_SCLP_VNI = 1 << 20,
 };
 
 enum ofp_ext_action_type {
-    OFPAT_EXT_SET_VXLAN    = 0x1001,
-    OFPAT_EXT_STRIP_VXLAN  = 0x1002,
-    OFPAT_EXT_SET_NVGRE    = 0x1003,
-    OFPAT_EXT_STRIP_NVGRE  = 0x1004,
-    OFPAT_EXT_SET_STT      = 0x1005,
-    OFPAT_EXT_STRIP_STT    = 0x1006,
-    OFPAT_EXT_SET_GENEVE   = 0x1007,
-    OFPAT_EXT_STRIP_GENEVE = 0x1008,
+    OFPAT_EXT_SET_VXLAN          = 0x1001,
+    OFPAT_EXT_STRIP_VXLAN        = 0x1002,
+    OFPAT_EXT_SET_NVGRE          = 0x1003,
+    OFPAT_EXT_STRIP_NVGRE        = 0x1004,
+    OFPAT_EXT_SET_STT            = 0x1005,
+    OFPAT_EXT_STRIP_STT          = 0x1006,
+    OFPAT_EXT_SET_GENEVE         = 0x1007,
+    OFPAT_EXT_STRIP_GENEVE       = 0x1008,
+    OFPAT_EXT_SET_VXLAN_SCLP     = 0x1009,
+    OFPAT_EXT_STRIP_VXLAN_SCLP   = 0x100A,
 };
 
 struct ofp_ext_action_tunnel {
@@ -103,5 +106,18 @@ struct ofp_ext_action_geneve {
     __u8  pad2[8];
 };
 OFP_ASSERT(sizeof(struct ofp_ext_action_geneve) == 64);
+
+struct ofp_ext_action_vxlan_sclp {
+    __u16 type;
+    __u16 len;
+    __u8  dl_dest[ETH_ALEN];
+    __u8  dl_src[ETH_ALEN];
+    __u8  nw_dest[16];
+    __u8  nw_src[16];
+    __u8  pad[4];
+    __u32 vxlan_sclp_vni;
+    __u8  pad2[8];
+};
+OFP_ASSERT(sizeof(struct ofp_ext_action_vxlan_sclp) == 64);
 
 #endif /* __CVSW_OFP_EXT_H_INCLUDED__ */
