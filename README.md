@@ -74,6 +74,10 @@ See 'INSTALL.md'
 Overview and architectural details of CVSW are described in the following 
 papers.
 
+* R. Kawashima and H. Matsuo, "Accelerating the Performance of Software 
+Tunneling using a Receive Offload-aware Novel L4 Protocol", IEICE 
+Transactions on Communications, vol.E98-B, no.11, 2015 (to appear)
+
 * R. Kawashima, S. Muramatsu, H. Nakayama, T. Hayashi, and H. Matsuo, 
 "SCLP: Segment-oriented Connection-Less Protocol for High-Performance 
 Software Tunneling in Datacenter Networks", Proc. 1st IEEE Network 
